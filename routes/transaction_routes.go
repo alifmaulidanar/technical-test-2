@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"fmt"
 	"net/http"
 	"technical-test-II/middleware"
 	"technical-test-II/repository"
@@ -8,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// SetupTransactionRoutes sets up the routes for transactions
 func TransactionRoutes(r *gin.Engine) {
 	r.POST("/topup", middleware.AuthMiddleware(), topUp)
 	r.GET("/transactions", middleware.AuthMiddleware(), getTransactionsReport)
@@ -17,24 +17,21 @@ func TransactionRoutes(r *gin.Engine) {
 }
 
 func getTransactionsReport(c *gin.Context) {
-	// Get user_id from JWT token (set by middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthenticated"})
 		return
 	}
 
-	// Retrieve all transactions for the user from the repository
+	// menampilkan seluruh transaksi milik user tersebut
 	transactions, err := repository.GetTransactionsByUserID(userID.(string))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	// Prepare the response data by adjusting transaction_reference
 	var responseTransactions []gin.H
 	for _, transaction := range transactions {
-		// Determine the correct ID based on transaction_reference
 		var referenceIDField string
 		switch transaction.TransactionReference {
 		case "top_up_id":
@@ -47,7 +44,6 @@ func getTransactionsReport(c *gin.Context) {
 			referenceIDField = "transaction_id"
 		}
 
-		// Prepare the transaction data with the appropriate ID field
 		transactionData := gin.H{
 			referenceIDField:   transaction.TransactionID,
 			"transaction_type": transaction.TransactionType,
@@ -58,11 +54,10 @@ func getTransactionsReport(c *gin.Context) {
 			"created_date":     transaction.CreatedDate,
 		}
 
-		// Add the transaction to the response list
 		responseTransactions = append(responseTransactions, transactionData)
 	}
 
-	// Return the transactions in the response
+	// kembalikan response sukses
 	c.JSON(http.StatusOK, gin.H{
 		"status": "SUCCESS",
 		"result": responseTransactions,
@@ -70,14 +65,12 @@ func getTransactionsReport(c *gin.Context) {
 }
 
 func topUp(c *gin.Context) {
-	// Get user_id from JWT token (set by middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthenticated"})
 		return
 	}
 
-	// Bind JSON input to a struct
 	var input struct {
 		Amount float64 `json:"amount" binding:"required"`
 	}
@@ -86,21 +79,20 @@ func topUp(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the user by user_id
 	user, err := repository.FindUserByID(userID.(string))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Process the top-up in the repository
+	// proses topup di repository
 	transaction, err := repository.TopUp(user, input.Amount)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process top-up"})
 		return
 	}
 
-	// Return success response
+	// kembalikan response sukses
 	c.JSON(http.StatusOK, gin.H{
 		"status": "SUCCESS",
 		"result": gin.H{
@@ -113,16 +105,14 @@ func topUp(c *gin.Context) {
 	})
 }
 
-// makePayment handles the user's payment transaction
+// melakukan pembayaran
 func makePayment(c *gin.Context) {
-	// Get user_id from JWT token (set by middleware)
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthenticated"})
 		return
 	}
 
-	// Bind JSON input to a struct
 	var input struct {
 		Amount  float64 `json:"amount" binding:"required"`
 		Remarks string  `json:"remarks"`
@@ -132,27 +122,25 @@ func makePayment(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the user by user_id
 	user, err := repository.FindUserByID(userID.(string))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Check if the user has enough balance
 	if user.Balance < input.Amount {
 		c.JSON(http.StatusBadRequest, gin.H{"message": "Balance is not enough"})
 		return
 	}
 
-	// Process the payment in the repository
+	// proses pembayaran di repository
 	transaction, err := repository.MakePayment(user, input.Amount, input.Remarks)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process payment"})
 		return
 	}
 
-	// Return success response
+	// kembaikan response sukses
 	c.JSON(http.StatusOK, gin.H{
 		"status": "SUCCESS",
 		"result": gin.H{
@@ -167,14 +155,12 @@ func makePayment(c *gin.Context) {
 }
 
 func transferBalance(c *gin.Context) {
-	// Get user_id from JWT token (set by middleware)
 	senderID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "Unauthenticated"})
 		return
 	}
 
-	// Bind JSON input to a struct
 	var input struct {
 		TargetUserID string  `json:"target_user" binding:"required"`
 		Amount       float64 `json:"amount" binding:"required"`
@@ -185,43 +171,38 @@ func transferBalance(c *gin.Context) {
 		return
 	}
 
-	// Retrieve the sender (user making the transfer)
-	sender, err := repository.FindUserByID(senderID.(string))
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Sender not found"})
-		return
-	}
-
-	// Retrieve the target user
-	targetUser, err := repository.FindUserByID(input.TargetUserID)
-	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Target user not found"})
-		return
-	}
-
-	// Check if the sender has enough balance
-	if sender.Balance < input.Amount {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "Balance is not enough"})
-		return
-	}
-
-	// Process the balance transfer in the repository
-	transferTransaction, _, err := repository.TransferBalance(sender, targetUser, input.Amount, input.Remarks)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process transfer"})
-		return
-	}
-
-	// Return success response
-	c.JSON(http.StatusOK, gin.H{
-		"status": "SUCCESS",
-		"result": gin.H{
-			"transfer_id":    transferTransaction.TransactionID,
-			"amount":         input.Amount,
-			"remarks":        input.Remarks,
-			"balance_before": transferTransaction.BalanceBefore,
-			"balance_after":  transferTransaction.BalanceAfter,
-			"created_date":   transferTransaction.CreatedDate,
-		},
+	// langsung kembalikan response
+	c.JSON(http.StatusAccepted, gin.H{
+		"status": "Processing transfer in background",
 	})
+
+	// transfer diproses pada background menggunakan Goroutine
+	go func() {
+		sender, err := repository.FindUserByID(senderID.(string))
+		if err != nil {
+			fmt.Println("Sender not found: ", err)
+			return
+		}
+
+		targetUser, err := repository.FindUserByID(input.TargetUserID)
+		if err != nil {
+			fmt.Println("Target user not found: ", err)
+			return
+		}
+
+		// cek pengirim memiliki saldo yang cukup
+		if sender.Balance < input.Amount {
+			fmt.Println("Sender does not have enough balance")
+			return
+		}
+
+		// proses transfer di repository
+		_, _, err = repository.TransferBalance(sender, targetUser, input.Amount, input.Remarks)
+		if err != nil {
+			fmt.Println("Failed to process transfer: ", err)
+			return
+		}
+
+		fmt.Println("Transfer successfully processed in background")
+	}()
 }
