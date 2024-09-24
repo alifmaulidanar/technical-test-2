@@ -11,6 +11,7 @@ This is a technical test project that demonstrates the use of Go, Gin Framework,
 - **JWT for Authentication**: JSON Web Tokens are used to authenticate and authorize users securely.
 - **Domain Driven Design (DDD)**: The project structure follows the principles of DDD to keep the business logic separated from the application logic.
 - **Bcrypt for Hashed PINs**: User PINs are hashed using bcrypt for secure password storage.
+- **Goroutines**: Used for handling background tasks such as asynchronous balance transfers.
 
 ## Features
 
@@ -37,6 +38,9 @@ This is a technical test project that demonstrates the use of Go, Gin Framework,
 3. **Database Migrations**:
 
    - The database schema is managed using GORM's auto-migration feature. Migrations are automatically applied when the application starts.
+
+4. **Background Task for Transfer**:
+   - The transfer money process is handled in the background to simulate a real-world transaction system where transfers are processed asynchronously by using Gorountines.
 
 ## Getting Started
 
